@@ -131,7 +131,9 @@ impl State {
             03 => {
                 // Writes are always in position mode.
                 assert!(mode1 == 0);
-                assert!(!self.inputs.is_empty());
+                if self.inputs.is_empty() {
+                    panic!("tried to read from input, but input was empty :(");
+                }
                 let write_addr = self.arg1();
                 let value = self.inputs.pop_front().unwrap();
                 println!("INPUT: writing {} to {}", value, write_addr);
@@ -144,6 +146,17 @@ impl State {
                 println!("OUTPUT: {}", value);
                 self.outputs.push(value);
                 self.ip += 2;
+            }
+            // 05: Jump-if-true:
+            // 06: Jump-if-false:
+            05 | 06 => {
+                let p1 = self.read_with_mode(mode1, self.arg1());
+                let p2 = self.read_with_mode(mode2, self.arg2());
+                if ((instruction == 05) && (p1 != 0)) || ((instruction == 06) && (p1 == 0)) {
+                    self.ip = p2;
+                } else {
+                    self.ip += 3;
+                }
             }
             99 => {
                 self.ip += 1;
@@ -247,5 +260,41 @@ mod tests {
         state.run(true);
         assert_eq!(state.memory_to_string(), "104,42,4,0,99");
         assert_eq!(state.outputs, vec![42, 104]);
+    }
+
+    const JUMP_POSITION_TEST: &str = "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9";
+
+    #[test]
+    fn test_day3_jump_test1() {
+        let mut state = State::from_string(JUMP_POSITION_TEST);
+        state.add_input(123);
+        state.run(true);
+        assert_eq!(state.outputs, vec![1]);
+    }
+
+    #[test]
+    fn test_day3_jump_test2() {
+        let mut state = State::from_string(JUMP_POSITION_TEST);
+        state.add_input(0);
+        state.run(true);
+        assert_eq!(state.outputs, vec![0]);
+    }
+
+    const JUMP_IMMEDIATE_TEST: &str = "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9";
+
+    #[test]
+    fn test_day3_jump_test3() {
+        let mut state = State::from_string(JUMP_IMMEDIATE_TEST);
+        state.add_input(123);
+        state.run(true);
+        assert_eq!(state.outputs, vec![1]);
+    }
+
+    #[test]
+    fn test_day3_jump_test4() {
+        let mut state = State::from_string(JUMP_IMMEDIATE_TEST);
+        state.add_input(0);
+        state.run(true);
+        assert_eq!(state.outputs, vec![0]);
     }
 }
