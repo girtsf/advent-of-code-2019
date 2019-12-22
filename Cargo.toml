@@ -1,5 +1,5 @@
 [package]
-name = "intcode"
+name = "adv_2019"
 version = "0.1.0"
 authors = ["Girts Folkmanis <opensource@girts.me>"]
 edition = "2018"

@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
-extern crate intcode;
+extern crate adv_2019;
 
-use intcode::wires;
+use adv_2019::wires;
 use std::fs;
 
 fn main() {

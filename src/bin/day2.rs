@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
-extern crate intcode;
+extern crate adv_2019;
 
-use intcode::intcode::State;
+use adv_2019::intcode::State;
 use std::env::args;
 
 fn main() {
