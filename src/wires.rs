@@ -1,14 +1,24 @@
 use std::cmp::{max, min};
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Cursor {
     x: i32,
     y: i32,
 
-    // Keep track of points that have been visited. It's a pretty dum way to do this. If this
-    // doesn't work, we'll track line segments instead.
-    seen: HashSet<(i32, i32)>,
+    // Keep track of points that have been visited. Values are number of steps we took to get
+    // there.
+    seen: HashMap<(i32, i32), i32>,
+
+    // Steps taken so far.
+    steps: i32,
+
+    // When checking for collisions, this gets updated to the smallest Manhattan distance to the
+    // origin.
+    smol_manh_distance_collision: i32,
+
+    // When checking for collisions, this gets updated with least steps to get a collision.
+    least_steps_for_collision: i32,
 
     // Bounding box.
     min_x: i32,
@@ -39,7 +49,10 @@ impl Cursor {
         Cursor {
             x: 0,
             y: 0,
-            seen: HashSet::new(),
+            seen: HashMap::new(),
+            steps: 0,
+            smol_manh_distance_collision: std::i32::MAX,
+            least_steps_for_collision: std::i32::MAX,
             min_x: 0,
             min_y: 0,
             max_x: 0,
@@ -51,17 +64,29 @@ impl Cursor {
         (self.x, self.y)
     }
 
-    pub fn go(&mut self, path: &Path, check_collisions: bool) -> i32 {
-        let mut smol_dist = std::i32::MAX;
-        for instr in path.0.iter() {
-            let dist = self.apply(instr, check_collisions);
-            smol_dist = min(smol_dist, dist);
+    pub fn smol_manh_distance_collision(&self) -> Option<i32> {
+        if self.smol_manh_distance_collision != std::i32::MAX {
+            Some(self.smol_manh_distance_collision)
+        } else {
+            None
         }
-        smol_dist
     }
 
-    fn apply(&mut self, instr: &PathInstruction, check_collisions: bool) -> i32 {
-        let mut smol_dist = std::i32::MAX;
+    pub fn least_steps_for_collision(&self) -> Option<i32> {
+        if self.least_steps_for_collision != std::i32::MAX {
+            Some(self.least_steps_for_collision)
+        } else {
+            None
+        }
+    }
+
+    pub fn go(&mut self, path: &Path, check_collisions: bool) {
+        for instr in path.0.iter() {
+            self.apply(instr, check_collisions);
+        }
+    }
+
+    fn apply(&mut self, instr: &PathInstruction, check_collisions: bool) {
         let inc = match instr.dir {
             Dir::R => (1, 0),
             Dir::L => (-1, 0),
@@ -70,34 +95,41 @@ impl Cursor {
         };
         for _ in 0..instr.length {
             if check_collisions {
-                if self.seen.contains(&(self.x, self.y)) {
-                    // Manhattan distance.
+                if let Some(previous_steps) = self.seen.get(&self.pos()) {
+                    // Calculate Manhattan distance for part 1.
                     let dist = self.x.abs() + self.y.abs();
-                    smol_dist = min(smol_dist, dist);
+                    self.smol_manh_distance_collision =
+                        min(self.smol_manh_distance_collision, dist);
+                    // Calculate steps for part 2.
+                    let steps = previous_steps + self.steps;
+                    dbg!(steps);
+                    self.least_steps_for_collision = min(self.least_steps_for_collision, steps);
                 }
             } else {
+                // Don't insert in pos (0, 0) as we don't check for collisions there.
                 if self.x != 0 || self.y != 0 {
-                    self.seen.insert((self.x, self.y));
+                    // Only insert the smallest.
+                    if !self.seen.contains_key(&(self.pos())) {
+                        self.seen.insert(self.pos(), self.steps);
+                    }
                 }
             }
             self.x += inc.0;
             self.y += inc.1;
+            self.steps += 1;
         }
         self.min_x = min(self.min_x, self.x);
         self.max_x = max(self.max_x, self.x);
         self.min_y = min(self.min_y, self.y);
         self.max_y = max(self.max_y, self.y);
-        smol_dist
     }
 
-    pub fn go_string(&mut self, s: &str, check_collisions: bool) -> Option<i32> {
+    pub fn go_string(&mut self, s: &str, check_collisions: bool) {
         let path = from_string(s);
         self.x = 0;
         self.y = 0;
-        match self.go(&path, check_collisions) {
-            std::i32::MAX => None,
-            x => Some(x),
-        }
+        self.steps = 0;
+        self.go(&path, check_collisions);
     }
 }
 
@@ -151,19 +183,34 @@ mod tests {
     fn test_apply() {
         let mut c = Cursor::new();
         let p = from_string("L2,U3,R1,D1");
-        assert_eq!(c.go(&p, false), std::i32::MAX);
+        c.go(&p, false);
         assert_eq!(c.x, -1);
         assert_eq!(c.y, 2);
     }
 
     #[test]
-    fn test_cross() {
+    fn test_part1() {
         let mut c = Cursor::new();
         c.go_string("R75,D30,R83,U83,L12,D49,R71,U7,L72", false);
-        assert_eq!(
-            c.go_string("U62,R66,U55,R34,D71,R55,D58,R83", true)
-                .unwrap(),
-            159
-        );
+        c.go_string("U62,R66,U55,R34,D71,R55,D58,R83", true);
+        assert_eq!(c.smol_manh_distance_collision().unwrap(), 159);
+    }
+
+    #[test]
+    fn test_part2_simple() {
+        let mut c = Cursor::new();
+        c.go_string("R8,U5,L5,D3", false);
+        dbg!(&c.seen);
+        c.go_string("U7,R6,D4,L4", true);
+        assert_eq!(c.least_steps_for_collision().unwrap(), 30);
+    }
+
+    #[test]
+    fn test_part2() {
+        let mut c = Cursor::new();
+        c.go_string("R75,D30,R83,U83,L12,D49,R71,U7,L72", false);
+        dbg!(&c.seen);
+        c.go_string("U62,R66,U55,R34,D71,R55,D58,R83", true);
+        assert_eq!(c.least_steps_for_collision().unwrap(), 610);
     }
 }

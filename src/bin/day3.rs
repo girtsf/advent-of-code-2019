@@ -16,6 +16,7 @@ fn main() {
     dbg!(cursor.pos());
     cursor.go_string(first_line, false);
     dbg!(cursor.pos());
-    let distance = cursor.go_string(second_line, true).unwrap();
-    dbg!(distance);
+    cursor.go_string(second_line, true);
+    dbg!(cursor.smol_manh_distance_collision());
+    dbg!(cursor.least_steps_for_collision());
 }
