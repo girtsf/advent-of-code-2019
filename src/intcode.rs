@@ -10,8 +10,14 @@ pub struct State {
     ip: i64,
 
     inputs: VecDeque<i64>,
-    outputs: Vec<i64>,
+    outputs: VecDeque<i64>,
     relative_base: i64,
+}
+
+#[derive(Debug)]
+pub enum StopReason {
+    Done,
+    WaitingOnInput,
 }
 
 /// Parses comma-delimited string into a vector of ints.
@@ -127,9 +133,7 @@ impl State {
     }
 
     /// Steps the intcode computer by one step.
-    ///
-    /// Returns true iff we should keep executing.
-    fn step(&mut self) -> bool {
+    fn step(&mut self) -> Option<StopReason> {
         let opcode = self.read(self.ip);
         assert!(opcode >= 0);
 
@@ -153,7 +157,7 @@ impl State {
             // Input:
             03 => {
                 if self.inputs.is_empty() {
-                    panic!("tried to read from input, but input was empty :(");
+                    return Some(StopReason::WaitingOnInput);
                 }
                 let value = self.inputs.pop_front().unwrap();
                 // println!("INPUT: writing {} to {}", value, write_addr);
@@ -164,7 +168,7 @@ impl State {
             04 => {
                 let value = self.read_with_mode(mode1, self.arg1());
                 // println!("OUTPUT: {}", value);
-                self.outputs.push(value);
+                self.outputs.push_back(value);
                 self.ip += 2;
             }
             // 05: Jump-if-true:
@@ -197,35 +201,35 @@ impl State {
                 if !self.inputs.is_empty() {
                     panic!("not all inputs were used!");
                 }
-                return false;
+                return Some(StopReason::Done);
             }
             _ => {
                 panic!("unknown instruction/opcode: {}", opcode);
             }
         };
-        true
+        None // keep going
     }
 
     pub fn add_input(&mut self, val: i64) {
         self.inputs.push_back(val);
     }
 
-    pub fn outputs(&self) -> &Vec<i64> {
-        &self.outputs
+    pub fn outputs(&mut self) -> &mut VecDeque<i64> {
+        &mut self.outputs
     }
 
     /// Runs until program finishes.
-    pub fn run(&mut self, debug: bool) {
+    pub fn run(&mut self, debug: bool) -> StopReason {
         loop {
             if debug {
                 println!("{:?}", self);
             }
-            if !self.step() {
-                break;
+            if let Some(stop_reason) = self.step() {
+                if debug {
+                    println!("{:?}", self);
+                }
+                return stop_reason;
             }
-        }
-        if debug {
-            println!("{:?}", self);
         }
     }
 }
