@@ -163,7 +163,7 @@ impl State {
             // Output:
             04 => {
                 let value = self.read_with_mode(mode1, self.arg1());
-                println!("OUTPUT: {}", value);
+                // println!("OUTPUT: {}", value);
                 self.outputs.push(value);
                 self.ip += 2;
             }
