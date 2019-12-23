@@ -158,6 +158,19 @@ impl State {
                     self.ip += 3;
                 }
             }
+            // 07: less than:
+            // 08: equals:
+            07 | 08 => {
+                let p1 = self.read_with_mode(mode1, self.arg1());
+                let p2 = self.read_with_mode(mode2, self.arg2());
+                assert!(mode3 == 0);
+                // Third argument is directly the write destination.
+                let write_addr = self.arg3();
+                let value =
+                    ((instruction == 07) && (p1 < p2)) || ((instruction == 08) && (p1 == p2));
+                self.write(write_addr, if value { 1 } else { 0 });
+                self.ip += 4;
+            }
             99 => {
                 self.ip += 1;
                 if !self.inputs.is_empty() {
@@ -240,14 +253,14 @@ mod tests {
     }
 
     #[test]
-    fn test_day3_example() {
+    fn test_day5_example() {
         let mut state = State::from_string("1002,4,3,4,33");
         state.run(true);
         assert_eq!(state.memory_to_string(), "1002,4,3,4,99");
     }
 
     #[test]
-    fn test_day3_input() {
+    fn test_day5_input() {
         let mut state = State::from_string("3,0,99");
         state.add_input(-42);
         state.run(true);
@@ -255,7 +268,7 @@ mod tests {
     }
 
     #[test]
-    fn test_day3_output() {
+    fn test_day5_output() {
         let mut state = State::from_string("104,42,4,0,99");
         state.run(true);
         assert_eq!(state.memory_to_string(), "104,42,4,0,99");
@@ -265,7 +278,7 @@ mod tests {
     const JUMP_POSITION_TEST: &str = "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9";
 
     #[test]
-    fn test_day3_jump_test1() {
+    fn test_day5_jump_test1() {
         let mut state = State::from_string(JUMP_POSITION_TEST);
         state.add_input(123);
         state.run(true);
@@ -273,7 +286,7 @@ mod tests {
     }
 
     #[test]
-    fn test_day3_jump_test2() {
+    fn test_day5_jump_test2() {
         let mut state = State::from_string(JUMP_POSITION_TEST);
         state.add_input(0);
         state.run(true);
@@ -283,7 +296,7 @@ mod tests {
     const JUMP_IMMEDIATE_TEST: &str = "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9";
 
     #[test]
-    fn test_day3_jump_test3() {
+    fn test_day5_jump_test3() {
         let mut state = State::from_string(JUMP_IMMEDIATE_TEST);
         state.add_input(123);
         state.run(true);
@@ -291,10 +304,46 @@ mod tests {
     }
 
     #[test]
-    fn test_day3_jump_test4() {
+    fn test_day5_jump_test4() {
         let mut state = State::from_string(JUMP_IMMEDIATE_TEST);
         state.add_input(0);
         state.run(true);
         assert_eq!(state.outputs, vec![0]);
+    }
+
+    #[test]
+    fn test_day5_compare() {
+        // List of tests to run. Each element consists of program code, and an array of input and
+        // output value test cases.
+        const TESTS: &[(&str, &[(i32, i32)])] = &[
+            ("3,9,8,9,10,9,4,9,99,-1,8", &[(9, 0), (8, 1), (7, 0)]),
+            ("3,9,7,9,10,9,4,9,99,-1,8", &[(9, 0), (8, 0), (7, 1)]),
+            ("3,3,1108,-1,8,3,4,3,99", &[(9, 0), (8, 1), (7, 0)]),
+            ("3,3,1107,-1,8,3,4,3,99", &[(9, 0), (8, 0), (7, 1)]),
+        ];
+
+        for (code, test_cases) in TESTS.iter() {
+            for (input, expected_output) in test_cases.iter() {
+                let mut state = State::from_string(code);
+                state.add_input(*input);
+                state.run(true);
+                assert_eq!(state.outputs, vec![*expected_output]);
+            }
+        }
+    }
+
+    #[test]
+    fn test_day5_larger_example() {
+        const TEST_CASES: &[(i32, i32)] = &[(5, 999), (8, 1000), (1234, 1001)];
+        for (input, expected_output) in TEST_CASES.iter() {
+            let mut state = State::from_string(concat!(
+                "3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,0",
+                ",1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,20",
+                ",1105,1,46,98,99"
+            ));
+            state.add_input(*input);
+            state.run(true);
+            assert_eq!(state.outputs, vec![*expected_output]);
+        }
     }
 }
