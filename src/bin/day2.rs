@@ -12,8 +12,8 @@ fn main() {
     let filename = args().nth(1).expect("no filename given");
     let mut state = State::from_file(&filename);
     for arg in args().skip(2) {
-        state.add_input(arg.parse::<i32>().unwrap());
+        state.add_input(arg.parse::<i64>().unwrap());
     }
-    state.run(true);
+    state.run(false);
     dbg!(state.outputs());
 }
