@@ -7,6 +7,7 @@ use std::fs;
 
 struct Orbits {
     parents: HashMap<String, String>,
+    distance_to_san: HashMap<String, i32>,
 }
 
 impl Orbits {
@@ -22,7 +23,33 @@ impl Orbits {
             assert!(!parents.contains_key(&rhs.to_string()));
             parents.insert(rhs.to_string(), lhs.to_string());
         }
-        Orbits { parents }
+        Orbits {
+            parents,
+            distance_to_san: HashMap::new(),
+        }
+    }
+
+    fn mark_distances_to_san(&mut self) {
+        let mut cnt = 0;
+        let mut node = self.parents.get("SAN").unwrap();
+        while self.parents.contains_key(node) {
+            self.distance_to_san.insert(node.to_string(), cnt);
+            cnt += 1;
+            node = self.parents.get(node).unwrap();
+        }
+    }
+
+    fn find_distance_to_san(&self) -> i32 {
+        let mut cnt = 0;
+        let mut node = self.parents.get("YOU").unwrap();
+        while self.parents.contains_key(node) {
+            if self.distance_to_san.contains_key(node) {
+                return cnt + self.distance_to_san.get(node).unwrap();
+            }
+            cnt += 1;
+            node = self.parents.get(node).unwrap();
+        }
+        panic!("failed to find");
     }
 
     fn count_up(&self, key: &str) -> i32 {
@@ -38,14 +65,17 @@ impl Orbits {
     fn count_orbits(&self) -> i32 {
         let mut cnt = 0;
         for from in self.parents.keys() {
-            dbg!(from);
-            cnt += dbg!(self.count_up(from));
+            // dbg!(from);
+            cnt += self.count_up(from);
         }
         cnt
     }
 }
 
 fn main() {
-    let orbits = Orbits::parse("inputs/day6.txt");
+    let mut orbits = Orbits::parse("inputs/day6.txt");
     dbg!(orbits.count_orbits());
+    orbits.mark_distances_to_san();
+    // dbg!(orbits.distance_to_san);
+    dbg!(orbits.find_distance_to_san());
 }
