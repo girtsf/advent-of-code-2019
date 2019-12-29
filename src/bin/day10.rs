@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::env::args;
 use std::fs;
 
@@ -19,6 +19,10 @@ struct Pt {
     y: i32,
 }
 
+// Pt, sortable and comparable by angle.
+#[derive(Debug, Clone, PartialEq)]
+struct AnglePt(Pt);
+
 impl Pt {
     fn simplify(&self) -> Pt {
         // walk down from min(x,y) to 2, try to divide.
@@ -33,9 +37,16 @@ impl Pt {
         }
         self.clone()
     }
+}
+
+impl AnglePt {
+    pub fn new(p: &Pt) -> Self {
+        Self(p.simplify())
+    }
 
     fn sector(&self) -> i32 {
-        let Pt { x, y } = *self;
+        let Pt { x, y } = self.0;
+        assert!(x != 0 || y != 0);
         if x == 0 && y < 0 {
             1
         } else if x > 0 {
@@ -58,31 +69,36 @@ impl Pt {
             }
         }
     }
+}
 
-    fn slope(&self) -> f32 {
-        if self.x == 0 {
-            0.0
-        } else {
-            self.y as f32 / self.x as f32
-        }
+// Tell the compiler that our PartialEq is Eq.
+impl Eq for AnglePt {}
+
+impl PartialOrd for AnglePt {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
-impl PartialOrd for Pt {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+impl Ord for AnglePt {
+    fn cmp(&self, other: &Self) -> Ordering {
         let s1 = self.sector();
         let s2 = other.sector();
         if s1 < s2 {
-            Some(Ordering::Less)
-        } else if s2 > s1 {
-            Some(Ordering::Greater)
+            Ordering::Less
+        } else if s1 > s2 {
+            Ordering::Greater
         } else {
-            let p1 = self.simplify();
-            let p2 = other.simplify();
-            if p1 == p2 {
-                Some(Ordering::Equal)
+            if self == other {
+                Ordering::Equal
             } else {
-                (self.y as f32 / self.x as f32).partial_cmp(&(other.y as f32 / other.x as f32))
+                // We are in the same sector. Compare the slopes.
+                // slope_self = self.y / self.x
+                // slope_other = other.y / other.x
+                // slope_self = (self.y * other.x) / (self.x * other.x)
+                // slope_other = (other.y * self.x) / (self.x * other.x)
+                // slope_self <=> slope.other is same as (self.y * other.x) <=> (other.y * self.x)
+                (self.0.y * other.0.x).cmp(&(other.0.y * self.0.x))
             }
         }
     }
@@ -94,6 +110,16 @@ impl std::ops::Add<&Pt> for &Pt {
         Pt {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
+        }
+    }
+}
+
+impl std::ops::Sub<&Pt> for &Pt {
+    type Output = Pt;
+    fn sub(self, rhs: &Pt) -> Pt {
+        Pt {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
         }
     }
 }
@@ -112,6 +138,24 @@ mod test {
     #[test]
     fn test_neg() {
         assert_eq!(Pt { x: 0, y: -2 }.simplify(), Pt { x: 0, y: -1 });
+    }
+    #[test]
+    fn test_angle_pt() {
+        assert_eq!(
+            AnglePt::new(&Pt { x: 1, y: 0 }),
+            AnglePt::new(&Pt { x: 1, y: 0 })
+        );
+        assert_eq!(
+            AnglePt::new(&Pt { x: 5, y: -2 }),
+            AnglePt::new(&Pt { x: 10, y: -4 })
+        );
+        assert!(AnglePt::new(&Pt { x: 1, y: -2 }) < AnglePt::new(&Pt { x: 2, y: -2 }));
+        assert!(AnglePt::new(&Pt { x: 2, y: -2 }) > AnglePt::new(&Pt { x: 1, y: -2 }));
+        let pt = AnglePt::new(&Pt { x: 5, y: -2 });
+        assert_eq!(pt, pt.clone());
+        assert_eq!(AnglePt::new(&Pt { x: -1, y: -1 }).sector(), 8);
+        assert_eq!(AnglePt::new(&Pt { x: 0, y: -1 }).sector(), 1);
+        assert!(AnglePt::new(&Pt { x: -1, y: -1 }) > AnglePt::new(&Pt { x: 0, y: -1 }));
     }
 }
 
@@ -179,11 +223,7 @@ impl Field {
             return false;
         }
         // Otherwise, we want to check whether it is occluded.
-        let delta = Pt {
-            x: origin.x - to.x,
-            y: origin.y - to.y,
-        }
-        .simplify();
+        let delta = (origin - to).simplify();
         let mut pt = to + &delta;
         // dbg!(origin, to, &delta, &pt);
         while pt != *origin {
@@ -215,7 +255,7 @@ impl Field {
         count
     }
 
-    fn find_best_position(&self) -> i32 {
+    fn find_best_position(&self) -> (i32, Pt) {
         let mut best = 0;
         let mut best_pos = None;
         for origin in self.iter() {
@@ -225,14 +265,52 @@ impl Field {
                 best_pos = Some(origin);
             }
         }
-        dbg!(best_pos);
-        best
+        (best, best_pos.unwrap())
     }
 
-    fn sort_by_angle(&self) {
-        let by_sec_and_angle: Vec<(i32, f32, Vec<Pt>)> = Vec::new();
+    fn sort_by_angle(&self, origin: &Pt) -> BTreeMap<AnglePt, Vec<Pt>> {
+        let mut map = BTreeMap::new();
         for pt in self.iter() {
-            let pt2 = pt.simplify();
+            if pt == *origin {
+                continue;
+            }
+            if !self.has(&pt) {
+                continue;
+            }
+            let delta = &pt - origin;
+            let angle = AnglePt::new(&delta);
+            if !map.contains_key(&angle) {
+                map.insert(angle.clone(), Vec::new());
+            }
+            map.get_mut(&angle).unwrap().push(delta);
+        }
+        // Sort vector in each angle.
+        for v in map.values_mut() {
+            v.sort_by(|a, b| (a.x * a.x + a.y * a.y).cmp(&(b.x * b.x + b.y * b.y)));
+        }
+        map
+    }
+
+    fn vaporize(&self, origin: &Pt) -> Pt {
+        let mut map = self.sort_by_angle(origin);
+        let mut i = 0;
+        loop {
+            for v in map.values_mut() {
+                if v.is_empty() {
+                    continue;
+                }
+                let first = v.remove(0); // results in O(N^2)
+                i += 1;
+                // println!(
+                //     "vaporizing {}: relative: {:?}, absolute: {:?}",
+                //     i,
+                //     first,
+                //     (&first + origin)
+                // );
+                if i == 200 {
+                    return &first + origin;
+                }
+            }
         }
     }
 }
@@ -240,10 +318,12 @@ impl Field {
 fn main() {
     let filename = args().nth(1).expect("no filename given");
     let mut field = Field::parse(&filename);
-    let origin = Pt { x: 5, y: 8 };
+    // let origin = Pt { x: 11, y: 13 };
     // let pt = Pt { x: 4, y: 4 };
     // dbg!(&field.m);
     // dbg!(field.count_visible_asteroids(&origin));
     // dbg!(field.is_visible_asteroid(&origin, &pt));
-    dbg!(field.find_best_position());
+    let (_, origin) = dbg!(field.find_best_position());
+    let vaporized_pt = dbg!(field.vaporize(&origin));
+    dbg!(vaporized_pt.x * 100 + vaporized_pt.y);
 }
