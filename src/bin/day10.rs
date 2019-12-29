@@ -2,6 +2,8 @@
 
 #![allow(dead_code)]
 
+use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::env::args;
 use std::fs;
 
@@ -30,6 +32,59 @@ impl Pt {
             }
         }
         self.clone()
+    }
+
+    fn sector(&self) -> i32 {
+        let Pt { x, y } = *self;
+        if x == 0 && y < 0 {
+            1
+        } else if x > 0 {
+            if y < 0 {
+                2
+            } else if y == 0 {
+                3
+            } else {
+                4
+            }
+        } else if x == 0 && y > 0 {
+            5
+        } else {
+            if y > 0 {
+                6
+            } else if y == 0 {
+                7
+            } else {
+                8
+            }
+        }
+    }
+
+    fn slope(&self) -> f32 {
+        if self.x == 0 {
+            0.0
+        } else {
+            self.y as f32 / self.x as f32
+        }
+    }
+}
+
+impl PartialOrd for Pt {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let s1 = self.sector();
+        let s2 = other.sector();
+        if s1 < s2 {
+            Some(Ordering::Less)
+        } else if s2 > s1 {
+            Some(Ordering::Greater)
+        } else {
+            let p1 = self.simplify();
+            let p2 = other.simplify();
+            if p1 == p2 {
+                Some(Ordering::Equal)
+            } else {
+                (self.y as f32 / self.x as f32).partial_cmp(&(other.y as f32 / other.x as f32))
+            }
+        }
     }
 }
 
@@ -172,6 +227,13 @@ impl Field {
         }
         dbg!(best_pos);
         best
+    }
+
+    fn sort_by_angle(&self) {
+        let by_sec_and_angle: Vec<(i32, f32, Vec<Pt>)> = Vec::new();
+        for pt in self.iter() {
+            let pt2 = pt.simplify();
+        }
     }
 }
 
