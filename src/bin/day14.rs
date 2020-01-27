@@ -8,13 +8,13 @@ struct Chemical {
     qty: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Reaction {
     produced: Chemical,
     requires: Vec<Chemical>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Reactions {
     reactions: HashMap<String, Reaction>,
     to_make: HashMap<String, Chemical>,
@@ -83,23 +83,22 @@ impl Reactions {
         self.to_make.remove(&name).unwrap()
     }
 
-    fn produce(&mut self, chem: &Chemical) {
+    fn produce(&mut self, chem: &Chemical) -> u64 {
         println!("producing {:?}", chem);
         self.to_make.insert(chem.name.to_string(), chem.clone());
 
         while !self.to_make.is_empty() {
-            dbg!(&self.reactions);
-            dbg!(&self.to_make);
+            // dbg!(&self.reactions);
+            // dbg!(&self.to_make);
             // go through the "to_make" list and find a thing with count=0
             let next_thing = self.find_zero_count_thing_to_make();
-            dbg!(&next_thing);
+            // dbg!(&next_thing);
 
             if next_thing.name == "ORE" {
-                dbg!(&next_thing);
+                // dbg!(&next_thing);
                 assert!(self.to_make.is_empty());
-                return;
+                return next_thing.qty;
             }
-            // dbg!(&self.to_make);
 
             let reaction = self.reactions.remove(&next_thing.name).unwrap();
 
@@ -128,8 +127,22 @@ fn main() {
     let input = fs::read_to_string(file).unwrap();
     let mut reactions = Reactions::parse(&input);
     // dbg!(&reactions);
-    reactions.produce(&Chemical {
+    
+    dbg!(reactions.clone().produce(&Chemical {
         name: "FUEL".to_string(),
         qty: 1,
+    }));
+
+    let ore: u64 = 1000000000000;
+    let ore_needed = reactions.clone().produce(&Chemical {
+        name: "FUEL".to_string(),
+        // Manually binary searched.
+        qty: 2910558,
     });
+    println!("ore: {} ore_needed: {}", ore, ore_needed);
+    if ore_needed > ore {
+        println!("too much fuel");
+    } else {
+        println!("too little fuel");
+    }
 }
