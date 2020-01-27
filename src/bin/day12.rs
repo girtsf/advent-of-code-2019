@@ -1,13 +1,13 @@
 use std::env::args;
 use std::fs;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Moon {
     pos: [i32; 3],
     vel: [i32; 3],
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Sim {
     moons: Vec<Moon>,
 }
@@ -74,6 +74,11 @@ impl Moon {
     fn total_energy(&self) -> i32 {
         self.potential_energy() * self.kinetic_energy()
     }
+
+    fn zero_out_dimension(&mut self, i: usize) {
+        self.pos[i] = 0;
+        self.vel[i] = 0;
+    }
 }
 
 impl Sim {
@@ -118,13 +123,74 @@ impl Sim {
         }
         sum
     }
+
+    fn zero_out_dimension(&mut self, i: usize) {
+        for moon in self.moons.iter_mut() {
+            moon.zero_out_dimension(i);
+        }
+    }
+}
+
+fn gcd(a: usize, b: usize) -> usize {
+    if a < b {
+        gcd(b, a)
+    } else if b == 0 {
+        a
+    } else {
+        gcd(b, a % b)
+    }
+}
+
+fn lcm(a: usize, b: usize) -> usize {
+    (a * b) / gcd(a, b)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gcd() {
+        assert_eq!(gcd(4, 6), 2);
+        assert_eq!(gcd(6, 4), 2);
+    }
+
+    #[test]
+    fn test_lcm() {
+        assert_eq!(lcm(6, 8), 24);
+    }
+}
+
+fn find_period(start: &Sim) -> usize {
+    let mut steps: [usize; 3] = [0, 0, 0];
+    for dim in 0..3 {
+        let mut sim = start.clone();
+        for dim2 in 0..3 {
+            if dim == dim2 {
+                continue;
+            }
+            sim.zero_out_dimension(dim2);
+        }
+        let first = sim.clone();
+        for i in 1..std::usize::MAX {
+            sim.step();
+            if i % 1_000_000 == 0 {
+                dbg!(&i);
+            }
+            if sim == first {
+                steps[dim] = i;
+                dbg!(i);
+                // dbg!(&sim);
+                break;
+            }
+        }
+    }
+    lcm(steps[0], lcm(steps[1], steps[2]))
 }
 
 fn main() {
     let file = args().nth(1).expect("no filename given");
     let input = fs::read_to_string(file).unwrap();
-    let mut sim = Sim::parse(&input);
-    sim.run(1000);
-    dbg!(&sim);
-    dbg!(&sim.total_energy());
+    let first_state = Sim::parse(&input);
+    dbg!(find_period(&first_state));
 }
