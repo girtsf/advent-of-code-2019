@@ -23,35 +23,54 @@ enum Tile {
     Ball,
 }
 
+#[derive(Default)]
 struct ScreenState {
     tiles: HashMap<Pos, Tile>,
+    score: i64,
+    paddle: i64,
+    ball: i64,
 }
 
 impl ScreenState {
     fn new() -> Self {
         Self {
             tiles: HashMap::new(),
+            ..Default::default()
         }
     }
 
     fn paint(&mut self, x: i64, y: i64, tile_id: i64) {
+        if x == -1 && y == 0 {
+            self.score = tile_id;
+            return;
+        }
         let tile = match tile_id {
             0 => Tile::Empty,
             1 => Tile::Wall,
             2 => Tile::Block,
-            3 => Tile::Paddle,
-            4 => Tile::Ball,
+            3 => {
+                self.paddle = x;
+                Tile::Paddle
+            }
+            4 => {
+                self.ball = x;
+                Tile::Ball
+            }
             _ => panic!("invalid tile_id"),
         };
+        // if tile == Tile::Paddle {
+        // }
         self.tiles.insert(Pos { x, y }, tile);
     }
 
     fn print_state(&self) {
+        dbg!(&self.score);
+        dbg!(&self.paddle);
         let min_x = self.tiles.iter().map(|(k, _)| k.x).min().unwrap();
         let max_x = self.tiles.iter().map(|(k, _)| k.x).max().unwrap();
         let min_y = self.tiles.iter().map(|(k, _)| k.y).min().unwrap();
         let max_y = self.tiles.iter().map(|(k, _)| k.y).max().unwrap();
-        dbg!(min_x, max_x, min_y, max_y);
+        // dbg!(min_x, max_x, min_y, max_y);
         for y in min_y..=max_y {
             for x in min_x..=max_x {
                 if let Some(c) = self.tiles.get(&Pos { x, y }) {
@@ -89,16 +108,31 @@ impl ScreenState {
                 let tile_id = outputs.pop_front().unwrap();
                 self.paint(x, y, tile_id);
             }
-            break;
+            match stop_reason {
+                StopReason::WaitingOnInput => {
+                    let joystick = if self.ball < self.paddle {
+                        -1
+                    } else if self.ball > self.paddle {
+                        1
+                    } else {
+                        0
+                    };
+                    state.add_input(joystick);
+                }
+                StopReason::Done => break,
+            }
+            // self.print_state();
         }
+        self.print_state();
     }
 }
 
 fn main() {
     let filename = args().nth(1).expect("no filename given");
-    let intcode_state = State::from_file(&filename);
+    let mut intcode_state = State::from_file(&filename);
+    // Insert a quarter.
+    intcode_state.write(0, 2);
     let mut screen_state = ScreenState::new();
     screen_state.run(intcode_state);
-    dbg!(&screen_state.block_count());
-    screen_state.print_state();
+    // dbg!(&screen_state.block_count());
 }

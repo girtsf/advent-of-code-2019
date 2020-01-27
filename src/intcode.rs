@@ -92,7 +92,7 @@ impl State {
     }
 
     /// Writes value to given address.
-    fn write(&mut self, addr: i64, value: i64) {
+    pub fn write(&mut self, addr: i64, value: i64) {
         assert!(addr >= 0);
         self.memory.insert(addr, value);
     }
