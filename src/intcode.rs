@@ -14,7 +14,7 @@ pub struct State {
     relative_base: i64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum StopReason {
     Done,
     WaitingOnInput,
